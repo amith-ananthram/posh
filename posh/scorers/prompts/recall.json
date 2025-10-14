@@ -1,0 +1,19 @@
+{
+    "prefix": "DESCRIPTION: {text}",
+    "entity_formatters": {
+        "no_parents": "{entity_text}",
+        "has_parents": "{{entity_text}} of {parent_entity_identifier}",
+        "attribute": "{formatted_entity} with attribute \"{attribute}\"",
+        "relation": "{formatted_entity} with relation \"{relation}\""
+    },
+    "verifiers": {
+        "entity": "Q: Is an entity matching \"{entity_identifier}\" mentioned in the DESCRIPTION? Consider synonyms & paraphrases but do NOT infer unstated details.",
+        "attribute": "Q: Is \"{entity_identifier}\" described as \"{attribute}\" in the DESCRIPTION? Consider paraphrases but do NOT infer unstated details.",
+        "relation": "Q: Is the relation between \"{entity1_identifier}\" and \"{entity2_identifier}\" described as \"{relation}\" in the DESCRIPTION? Consider paraphrases but do NOT infer unstated details."
+    },
+    "rewrite": {
+        "attribute": "Rewrite \"{entity_identifier}\" into a grammatically correct noun phrase, keeping all details. For example, \"dog small\" should be rewritten as \"the small dog\". Output ONLY the phrase.",
+        "relation": "Rewrite \"{entity_identifier}\" into a grammatically correct noun phrase, keeping all details. For example, \"cat jumps on window\" should be rewritten as \"the cat jumping on the window\". Output ONLY the phrase."
+    },
+    "instructions": "Scoring guide → 1: absent; 2: weak hint; 3: partial; 4: clear; 5: explicit & unambiguous.\n\nRespond ONLY with an integer 1-5."
+}
