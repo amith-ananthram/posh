@@ -128,6 +128,7 @@ class QASceneGraphScorer:
                 "PoSh is running in unofficial mode.  While faster, these scores are not replicable!"
             )
         else:
+            os.environ["VLLM_USE_V1"] = "1"
             os.environ["VLLM_ENABLE_V1_MULTIPROCESSING"] = "0"
             os.environ["VLLM_KERNEL_OVERRIDE_BATCH_INVARIANT"] = "1"
 
