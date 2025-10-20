@@ -130,7 +130,7 @@ class QASceneGraphScorer:
         else:
             os.environ["VLLM_USE_V1"] = "1"
             os.environ["VLLM_ENABLE_V1_MULTIPROCESSING"] = "0"
-            os.environ["VLLM_KERNEL_OVERRIDE_BATCH_INVARIANT"] = "1"
+            os.environ["VLLM_BATCH_INVARIANT"] = "1"
 
         self.prompts = {}
         for prompt_type, prompt_file in PROMPT_FILES.items():

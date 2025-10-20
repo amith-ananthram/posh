@@ -315,6 +315,7 @@ if __name__ == "__main__":
     parser.add_argument("--tensor-parallel-size", type=int, default=1)
     parser.add_argument("--gpu-memory-utilization", type=float, default=0.9)
     parser.add_argument("--enable-prefix-caching", action="store_true")
+    parser.add_argument("--cache-dir", type=str, default=None)
     parser.add_argument("--verbosity", type=str, choices=["quiet", "debug"], default="quiet")
     args = parser.parse_args()
 
@@ -322,7 +323,8 @@ if __name__ == "__main__":
         qa_gpu_memory_utilization=args.gpu_memory_utilization,
         qa_tensor_parallel_size=args.tensor_parallel_size,
         qa_enable_prefix_caching=args.enable_prefix_caching,
-        verbosity=args.verbosity,
+        cache_dir=args.cache_dir,
+        verbosity=args.verbosity
     )
 
     generations, references, pairwise_rankings = load_coarse_benchmark(args.benchmark)
