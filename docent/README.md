@@ -11,10 +11,9 @@ It contains 1,750 paintings, sketches, and sculptures with detailed reference de
 The judgments in DOCENT are available on HuggingFace:
 
 granular: https://huggingface.co/datasets/amitha/docent-eval-granular
+
 coarse: https://huggingface.co/datasets/amitha/docent-eval-coarse
 
 ## Leaderboard
 
-The train, validation and test images that comprise the DOCENT leaderboard, which tracks model progress on detailed image description, are also on HuggingFace:
-
-https://huggingface.co/datasets/amitha/docent
+The train, validation and test images that comprise the DOCENT leaderboard, which tracks model progress on detailed image description, are also on HuggingFace: https://huggingface.co/datasets/amitha/docent
