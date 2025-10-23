@@ -12,6 +12,8 @@ To validate PoSh, we collect a new benchmark named DOCENT of artwork from the U.
 
 In our evaluations, PoSh is a better proxy for the human judgments in DOCENT than existing open-weight metrics (and GPT4o-as-a-Judge).  Moreover, PoSh is robust to image type and source model, performing well on CapArena.  Finally, we find that PoSh is an effective reward function, outperforming SFT on the 1,000 training images on DOCENT.
 
+To learn more about PoSh, please read our paper, "PoSh: Using Scene Graphs To Guide LLMs-as-a-Judge For Detailed Image Descriptions": https://arxiv.org/abs/2510.19060
+
 To replicate our evaluation of PoSh on DOCENT and CapArena, please run the following on a single H100 GPU running CUDA 12.7:
 
 ```
@@ -41,3 +43,16 @@ generations, references = [# your generations here], [# your references here]
 coarse_scores = posh.evaluate(generations=generations, references=references)
 ```
 
+If you find either PoSh or DOCENT useful in your work, please cite:
+
+```
+@misc{ananthram2025poshusingscenegraphs,
+      title={PoSh: Using Scene Graphs To Guide LLMs-as-a-Judge For Detailed Image Descriptions}, 
+      author={Amith Ananthram and Elias Stengel-Eskin and Lorena A. Bradford and Julia Demarest and Adam Purvis and Keith Krut and Robert Stein and Rina Elster Pantalony and Mohit Bansal and Kathleen McKeown},
+      year={2025},
+      eprint={2510.19060},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2510.19060}, 
+}
+```
