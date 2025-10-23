@@ -1,3 +1,4 @@
+import json
 import numpy as np
 import pandas as pd
 from operator import itemgetter
@@ -35,7 +36,7 @@ def load_coarse_benchmark(benchmark_name):
         for row in docent:
             reference = row["reference"]
             for key in ["model1", "model2"]:
-                generation_reference_pairs.add((row[f"{key}_generation"], reference))
+                generation_reference_pairs.add((f"{row['uuid']}-{row[key]}", row[f"{key}_generation"], reference))
 
             pairwise_rankings.append(
                 {
@@ -60,7 +61,7 @@ def load_coarse_benchmark(benchmark_name):
 
             reference = row["ref"]
             for key in ["1", "2"]:
-                generation_reference_pairs.add((row[f"caption{key}"], reference))
+                generation_reference_pairs.add((f"{row['img']}-{row['source' + key]}", row[f"caption{key}"], reference))
 
             # this mapping replicates CapArena's reported results
             winner = {
@@ -85,10 +86,13 @@ def load_coarse_benchmark(benchmark_name):
             )
 
     generation_reference_pairs = list(sorted(generation_reference_pairs))
-    generations = list(map(itemgetter(0), generation_reference_pairs))
-    references = list(map(itemgetter(1), generation_reference_pairs))
+    cache_keys = list(map(itemgetter(0), generation_reference_pairs))
+    generations = list(map(itemgetter(1), generation_reference_pairs))
+    references = list(map(itemgetter(2), generation_reference_pairs))
 
-    return generations, references, pairwise_rankings
+    assert len(set(cache_keys)) == len(cache_keys)
+
+    return generations, references, cache_keys, pairwise_rankings
 
 
 # adapted from compute_elo in the CapArena codebase
@@ -314,7 +318,7 @@ if __name__ == "__main__":
     parser.add_argument("--benchmark", type=str, default="docent", choices=["docent", "caparena"])
     parser.add_argument("--tensor-parallel-size", type=int, default=1)
     parser.add_argument("--gpu-memory-utilization", type=float, default=0.9)
-    parser.add_argument("--enable-prefix-caching", action="store_true")
+    parser.add_argument("--disable-prefix-caching", action="store_true", default=False)
     parser.add_argument("--cache-dir", type=str, default=None)
     parser.add_argument("--verbosity", type=str, choices=["quiet", "debug"], default="quiet")
     args = parser.parse_args()
@@ -322,22 +326,22 @@ if __name__ == "__main__":
     posh = PoSh(
         qa_gpu_memory_utilization=args.gpu_memory_utilization,
         qa_tensor_parallel_size=args.tensor_parallel_size,
-        qa_enable_prefix_caching=args.enable_prefix_caching,
+        qa_enable_prefix_caching=not args.disable_prefix_caching,
         cache_dir=args.cache_dir,
         verbosity=args.verbosity
     )
 
-    generations, references, pairwise_rankings = load_coarse_benchmark(args.benchmark)
+    generations, references, cache_keys, pairwise_rankings = load_coarse_benchmark(args.benchmark)
 
     scores = {}
     for generation, reference, coarse_score in zip(
         generations,
         references,
-        posh.evaluate(generations=generations, references=references),
+        posh.evaluate(generations=generations, references=references, cache_keys=cache_keys),
     ):
         assert (generation, reference) not in scores
         scores[(generation, reference)] = coarse_score
 
     correlations = calculate_coarse_correlations(pairwise_rankings, scores, args.benchmark)
 
-    print(correlations)
+    print(json.dumps(correlations, indent=4))

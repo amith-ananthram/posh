@@ -15,7 +15,7 @@ class PoSh:
         qa_max_tokens=2000,
         qa_gpu_memory_utilization=0.9,
         qa_tensor_parallel_size=1,
-        qa_enable_prefix_caching=False,
+        qa_enable_prefix_caching=True,
         unofficial=False,
         cache_dir=None,
         verbosity="quiet",
