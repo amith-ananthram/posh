@@ -32,7 +32,7 @@ CAPARENA_PATH = "corpora/caparena/caparena_annots_eval.json"
 def load_coarse_benchmark(benchmark_name):
     generation_reference_pairs, pairwise_rankings = set(), []
     if benchmark_name == "docent":
-        docent = load_dataset("amitha/docent-eval", split="coarse")
+        docent = load_dataset("amitha/docent-eval-coarse", split="test")
         for row in docent:
             reference = row["reference"]
             for key in ["model1", "model2"]:

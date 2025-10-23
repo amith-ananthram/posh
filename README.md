@@ -18,8 +18,8 @@ To replicate our evaluation of PoSh on DOCENT and CapArena, please run the follo
 conda env create -f environment.yml
 conda activate posh
 
-python evaluate_posh.py --benchmark docent
-python evaluate_posh.py --benchmark caparena
+python evaluate_posh_coarse.py --benchmark docent
+python evaluate_posh_coarse.py --benchmark caparena
 ```
 
 # Usage
