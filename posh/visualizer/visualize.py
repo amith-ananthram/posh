@@ -1,10 +1,7 @@
-"""Utilities for visualizing DOCENT annotations and PoSh granular scores.
+"""Utilities for visualizing DOCENT annotations using HTML/CSS.
 
-This module exposes helpers for generating a side-by-side visualization of
-an image, its reference description, and a candidate generation.  Spans that
-have been annotated as *mistakes* in the generation are highlighted in red,
-while spans that represent *omissions* in the reference are highlighted in
-blue.  The visualization can be displayed interactively or saved to disk.
+This module generates clean, interactive HTML visualizations with proper
+text highlighting and layout control.
 
 Example
 -------
@@ -12,7 +9,7 @@ Example
 from pathlib import Path
 from PIL import Image
 
-from posh.visualizer.visualize import create_visualization, save_visualization
+from visualize_html import create_visualization, save_visualization
 
 image = Image.open(Path("example.jpg"))
 reference = "A woman in a white dress holds a golden chalice."
@@ -20,30 +17,30 @@ generation = "A woman in a blue dress holds a silver cup."
 mistakes = [{"start": 16, "end": 25}, {"start": 38, "end": 48}]
 omissions = [{"start": 24, "end": 39}]
 
-fig = create_visualization(image, reference, generation, mistakes, omissions)
-fig.show()  # or plt.show()
-
+html = create_visualization(image, reference, generation, mistakes, omissions)
 save_visualization(
     image,
     reference,
     generation,
     mistakes,
     omissions,
-    Path("visualization.png"),
+    Path("visualization.html"),
 )
 ```
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import base64
+from io import BytesIO
 from pathlib import Path
+from dataclasses import dataclass
 from typing import Iterable, List, Mapping, Optional, Sequence, Tuple, Union
+import argparse
+import json
 
-import matplotlib.gridspec as gridspec
-import matplotlib.pyplot as plt
-import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
+from datasets import load_dataset
 
 SpanInput = Union[Sequence[int], Tuple[int, int], Mapping[str, int]]
 
@@ -81,12 +78,7 @@ def _coerce_span(raw: SpanInput) -> Span:
 
 
 def _normalize_spans(text: str, spans: Optional[Iterable[SpanInput]]) -> List[Span]:
-    """Normalize incoming span annotations.
-
-    - Converts all inputs to :class:`Span`.
-    - Clamps to the text bounds.
-    - Sorts and merges overlapping spans.
-    """
+    """Normalize incoming span annotations."""
 
     if not spans:
         return []
@@ -113,184 +105,56 @@ def _normalize_spans(text: str, spans: Optional[Iterable[SpanInput]]) -> List[Sp
     return merged
 
 
-def _span_mask(length: int, spans: Sequence[Span]) -> List[bool]:
-    """Build a boolean mask indicating highlighted character positions."""
-
-    mask = [False] * length
-    for span in spans:
-        for idx in range(span.start, min(span.end, length)):
-            mask[idx] = True
-    return mask
-
-
-def _resolve_font(font: Optional[ImageFont.ImageFont]) -> ImageFont.ImageFont:
-    """Retrieve a usable font instance."""
-
-    if font is not None:
-        return font
-    try:
-        return ImageFont.truetype("DejaVuSans.ttf", size=14)
-    except (OSError, IOError):
-        return ImageFont.load_default()
-
-
-def _measure_width(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont) -> float:
-    """Measure text width with a graceful fallback across Pillow releases."""
-
-    try:
-        return float(draw.textlength(text, font=font))
-    except AttributeError:  # Pillow < 8.0 fallback
-        return float(draw.textsize(text, font=font)[0])
-
-
-def _hex_to_rgb(color: str) -> Tuple[int, int, int]:
-    color = color.lstrip("#")
-    if len(color) == 3:
-        color = "".join(ch * 2 for ch in color)
-    if len(color) != 6:
-        raise ValueError(f"Invalid color specification: {color!r}")
-    r = int(color[0:2], 16)
-    g = int(color[2:4], 16)
-    b = int(color[4:6], 16)
-    return r, g, b
-
-
-def _compute_line_breaks(
+def _create_highlighted_html(
     text: str,
-    max_width: int,
-    draw: ImageDraw.ImageDraw,
-    font: ImageFont.ImageFont,
-) -> List[Tuple[int, int]]:
-    """Split ``text`` into drawable lines constrained by ``max_width``."""
-
-    lines: List[Tuple[int, int]] = []
-    idx = 0
-    text_len = len(text)
-
-    while idx < text_len:
-        if text[idx] == "\n":
-            lines.append((idx, idx))
-            idx += 1
-            continue
-
-        line_start = idx
-        line_width = 0.0
-        last_space = -1
-
-        while idx < text_len:
-            char = text[idx]
-            if char == "\n":
-                lines.append((line_start, idx))
-                idx += 1
-                break
-
-            probe = "    " if char == "\t" else char
-            char_width = _measure_width(draw, probe, font)
-
-            if line_width + char_width > max_width and line_width > 0:
-                if last_space >= line_start:
-                    lines.append((line_start, last_space))
-                    idx = last_space + 1
-                else:
-                    lines.append((line_start, idx))
-                break
-
-            line_width += char_width
-            if char == " ":
-                last_space = idx
-            idx += 1
-        else:
-            lines.append((line_start, text_len))
-            idx = text_len
-
-    if not lines:
-        lines.append((0, 0))
-    return lines
-
-
-def _render_text_panel(
-    text: str,
-    spans: Sequence[Span],
+    spans: List[Span],
     highlight_color: str,
-    title: str,
-    *,
-    width: int = 720,
-    margin: int = 18,
-    font: Optional[ImageFont.ImageFont] = None,
-    title_font: Optional[ImageFont.ImageFont] = None,
-    line_spacing: int = 6,
-) -> Image.Image:
-    """Render ``text`` into an image with highlighted spans."""
+) -> str:
+    """Create HTML with highlighted spans."""
 
-    resolved_font = _resolve_font(font)
-    resolved_title_font = _resolve_font(title_font)
-    dummy = Image.new("RGB", (1, 1), "white")
-    draw = ImageDraw.Draw(dummy)
+    if not spans:
+        # Escape HTML and preserve line breaks
+        import html
 
-    max_text_width = max(1, width - 2 * margin)
-    line_spans = _compute_line_breaks(text, max_text_width, draw, resolved_font)
-    highlight_mask = _span_mask(len(text), spans)
+        return html.escape(text).replace("\n", "<br>")
 
-    ascent, descent = resolved_font.getmetrics()
-    line_height = ascent + descent + line_spacing
+    # Sort spans by start position
+    sorted_spans = sorted(spans, key=lambda s: s.start)
 
-    title_height = 0
-    if title:
-        try:
-            title_bbox = draw.textbbox((0, 0), title, font=resolved_title_font)
-            title_raw_height = title_bbox[3] - title_bbox[1]
-        except AttributeError:
-            title_raw_height = draw.textsize(title, font=resolved_title_font)[1]
-        title_height = title_raw_height + line_spacing
+    # Build the HTML with highlights
+    import html as html_module
 
-    panel_height = max(1, title_height + len(line_spans) * line_height + margin * 2)
-    panel = Image.new("RGB", (width, panel_height), "white")
-    panel_draw = ImageDraw.Draw(panel)
+    result = []
+    last_end = 0
 
-    y = margin
-    if title:
-        panel_draw.text((margin, y), title, fill="black", font=resolved_title_font)
-        y += title_height
+    for span in sorted_spans:
+        # Add text before the span
+        if span.start > last_end:
+            escaped = html_module.escape(text[last_end : span.start])
+            result.append(escaped.replace("\n", "<br>"))
 
-    highlight_rgb = _hex_to_rgb(highlight_color)
+        # Add highlighted text
+        highlighted_text = html_module.escape(text[span.start : span.end])
+        result.append(
+            f'<mark style="background-color: {highlight_color}; padding: 2px 4px; border-radius: 3px;">{highlighted_text}</mark>'
+        )
 
-    for start, end in line_spans:
-        x = margin
-        for idx in range(start, end):
-            char = text[idx]
-            probe = "    " if char == "\t" else char
-            char_width = _measure_width(panel_draw, probe, resolved_font)
-            if highlight_mask[idx]:
-                panel_draw.rectangle(
-                    [x, y, x + char_width, y + ascent + descent],
-                    fill=highlight_rgb,
-                )
-            panel_draw.text((x, y), probe, fill="black", font=resolved_font)
-            x += char_width
-        y += line_height
+        last_end = span.end
 
-    return panel
+    # Add remaining text
+    if last_end < len(text):
+        escaped = html_module.escape(text[last_end:])
+        result.append(escaped.replace("\n", "<br>"))
+
+    return "".join(result)
 
 
-def _prepare_image(image: Image.Image) -> np.ndarray:
-    """Convert the input ``image`` into an array suitable for plotting."""
-
-    if not isinstance(image, Image.Image):
-        raise TypeError("image must be a PIL.Image.Image instance")
-    return np.asarray(image.convert("RGB"))
-
-
-def _prepare_text_panel(
-    text: str,
-    spans: Optional[Iterable[SpanInput]],
-    *,
-    highlight_color: str,
-    title: str,
-    panel_width: int,
-) -> np.ndarray:
-    normalized = _normalize_spans(text, spans)
-    panel_image = _render_text_panel(text, normalized, highlight_color, title, width=panel_width)
-    return np.asarray(panel_image)
+def _image_to_base64(image: Image.Image) -> str:
+    """Convert PIL image to base64 data URL."""
+    buffered = BytesIO()
+    image.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+    return f"data:image/png;base64,{img_str}"
 
 
 def create_visualization(
@@ -300,12 +164,10 @@ def create_visualization(
     mistakes: Optional[Iterable[SpanInput]] = None,
     omissions: Optional[Iterable[SpanInput]] = None,
     *,
-    figsize: Tuple[float, float] = (12.0, 8.0),
-    panel_width: int = 720,
-    mistake_color: str = "#f8d7da",
-    omission_color: str = "#d1e7ff",
-) -> plt.Figure:
-    """Build a matplotlib figure highlighting mistakes and omissions.
+    mistake_color: str = "#ffcccc",
+    omission_color: str = "#cce5ff",
+) -> str:
+    """Build an HTML visualization highlighting mistakes and omissions.
 
     Parameters
     ----------
@@ -314,82 +176,177 @@ def create_visualization(
     reference / generation:
         The reference and generated descriptions.
     mistakes:
-        Iterable of spans (``start``/``end``) that should be highlighted in the
-        generation text as mistakes.
+        Iterable of spans that should be highlighted in the generation text.
     omissions:
-        Iterable of spans that should be highlighted in the reference text as
-        omissions.
-    figsize:
-        Matplotlib figure size in inches.
-    panel_width:
-        Width in pixels for the rendered text panels.
+        Iterable of spans that should be highlighted in the reference text.
     mistake_color / omission_color:
-        Colors (hex strings) used for highlighting mistakes (generation) and
-        omissions (reference).
+        Colors (hex strings) used for highlighting.
 
     Returns
     -------
-    matplotlib.figure.Figure
-        A figure containing the composed visualization.
+    str
+        HTML string containing the visualization.
     """
 
-    image_array = _prepare_image(image)
-    reference_panel = _prepare_text_panel(
-        reference,
-        omissions,
-        highlight_color=omission_color,
-        title="Reference (omissions in blue)",
-        panel_width=panel_width,
+    # Convert image to base64
+    img_data = _image_to_base64(image)
+
+    # Normalize spans
+    normalized_omissions = _normalize_spans(reference, omissions)
+    normalized_mistakes = _normalize_spans(generation, mistakes)
+
+    # Create highlighted HTML text
+    reference_html = _create_highlighted_html(
+        reference, normalized_omissions, omission_color
     )
-    generation_panel = _prepare_text_panel(
-        generation,
-        mistakes,
-        highlight_color=mistake_color,
-        title="Generation (mistakes in red)",
-        panel_width=panel_width,
+    generation_html = _create_highlighted_html(
+        generation, normalized_mistakes, mistake_color
     )
 
-    fig = plt.figure(figsize=figsize)
-    image_width = max(1, image_array.shape[1])
-    grid = gridspec.GridSpec(2, 2, width_ratios=[1.0, panel_width / image_width], figure=fig)
+    # Create the HTML
+    html = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DOCENT Visualization</title>
+    <style>
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        
+        body {{
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }}
+        
+        .container {{
+            display: grid;
+            grid-template-columns: 40% 60%;
+            gap: 20px;
+            max-width: 1800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }}
+        
+        .image-panel {{
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            grid-row: 1 / 3;
+        }}
+        
+        .image-panel img {{
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }}
+        
+        .text-panel {{
+            background: white;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+        }}
+        
+        .text-panel h3 {{
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 18px;
+            font-weight: 600;
+        }}
+        
+        .text-content {{
+            line-height: 1.8;
+            color: #444;
+            font-size: 15px;
+        }}
+        
+        mark {{
+            border-radius: 3px;
+            padding: 2px 4px;
+        }}
+        
+        .legend {{
+            display: flex;
+            gap: 20px;
+            margin-top: 10px;
+            font-size: 14px;
+            color: #666;
+        }}
+        
+        .legend-item {{
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }}
+        
+        .legend-box {{
+            width: 20px;
+            height: 20px;
+            border-radius: 3px;
+            border: 1px solid #ccc;
+        }}
+        
+        @media (max-width: 1200px) {{
+            .container {{
+                grid-template-columns: 1fr;
+                grid-template-rows: auto auto auto;
+            }}
+            
+            .image-panel {{
+                grid-row: 1 / 2;
+            }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="image-panel">
+            <img src="{img_data}" alt="Painting">
+        </div>
+        
+        <div class="text-panel">
+            <h3>Reference</h3>
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-box" style="background-color: {omission_color};"></div>
+                    <span>Omissions</span>
+                </div>
+            </div>
+            <div class="text-content">
+                {reference_html}
+            </div>
+        </div>
+        
+        <div class="text-panel">
+            <h3>Generation</h3>
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-box" style="background-color: {mistake_color};"></div>
+                    <span>Mistakes</span>
+                </div>
+            </div>
+            <div class="text-content">
+                {generation_html}
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+"""
 
-    image_ax = fig.add_subplot(grid[:, 0])
-    image_ax.imshow(image_array)
-    image_ax.axis("off")
-    image_ax.set_title("Image", fontsize=14, pad=10)
-
-    ref_ax = fig.add_subplot(grid[0, 1])
-    ref_ax.imshow(reference_panel)
-    ref_ax.axis("off")
-
-    gen_ax = fig.add_subplot(grid[1, 1])
-    gen_ax.imshow(generation_panel)
-    gen_ax.axis("off")
-
-    fig.tight_layout()
-    return fig
-
-
-def show_visualization(
-    image: Image.Image,
-    reference: str,
-    generation: str,
-    mistakes: Optional[Iterable[SpanInput]] = None,
-    omissions: Optional[Iterable[SpanInput]] = None,
-    **kwargs,
-) -> plt.Figure:
-    """Create and display the visualization with ``plt.show()``."""
-
-    fig = create_visualization(
-        image,
-        reference,
-        generation,
-        mistakes=mistakes,
-        omissions=omissions,
-        **kwargs,
-    )
-    plt.show(block=False)
-    return fig
+    return html
 
 
 def save_visualization(
@@ -398,15 +355,12 @@ def save_visualization(
     generation: str,
     mistakes: Optional[Iterable[SpanInput]] = None,
     omissions: Optional[Iterable[SpanInput]] = None,
-    save_path: Union[str, Path] = Path("visualization.png"),
-    *,
-    dpi: int = 150,
-    close: bool = True,
+    save_path: Union[str, Path] = Path("visualization.html"),
     **kwargs,
 ) -> Path:
-    """Create the visualization and persist it to ``save_path``."""
+    """Create the visualization and save it as an HTML file."""
 
-    fig = create_visualization(
+    html = create_visualization(
         image,
         reference,
         generation,
@@ -414,8 +368,31 @@ def save_visualization(
         omissions=omissions,
         **kwargs,
     )
+
     path = Path(save_path)
-    fig.savefig(path, dpi=dpi, bbox_inches="tight")
-    if close:
-        plt.close(fig)
+    path.write_text(html, encoding="utf-8")
+
     return path
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser("Visualize a DOCENT granular annotation as HTML")
+    parser.add_argument("--idx", type=int, required=True)
+    parser.add_argument("--save-path", type=str, default="visualization.html")
+    args = parser.parse_args()
+
+    dataset = load_dataset("amitha/docent-eval-granular")
+
+    assert args.idx < len(dataset["test"]), f"Index {args.idx} out of range!"
+
+    item = dataset["test"][args.idx]
+    save_visualization(
+        item["image"],
+        item["reference"],
+        item["generation"],
+        json.loads(item["mistakes"]),
+        json.loads(item["omissions"]),
+        Path(args.save_path),
+    )
+
+    print(f"Visualization saved to {args.save_path}")
