@@ -17,7 +17,7 @@ To learn more about PoSh and DOCENT, please read our paper, "PoSh: Using Scene G
 To replicate our evaluation of PoSh on DOCENT and CapArena, please run the following on a single H100 GPU running CUDA 12.7:
 
 ```
-conda env create -f environment.yml
+PIP_NO_DEPS=1 conda env create -f environment.yml
 conda activate posh
 
 python evaluate_posh_coarse.py --benchmark docent
