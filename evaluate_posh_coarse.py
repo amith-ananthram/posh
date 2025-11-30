@@ -1,6 +1,7 @@
 import json
 import numpy as np
 import pandas as pd
+from datetime import datetime
 from operator import itemgetter
 from datasets import load_dataset
 from sklearn.metrics import accuracy_score
@@ -320,6 +321,7 @@ if __name__ == "__main__":
     parser.add_argument("--gpu-memory-utilization", type=float, default=0.9)
     parser.add_argument("--disable-prefix-caching", action="store_true", default=False)
     parser.add_argument("--cache-dir", type=str, default=None)
+    parser.add_argument("--unofficial", action="store_true", default=False)
     parser.add_argument("--verbosity", type=str, choices=["quiet", "debug"], default="quiet")
     args = parser.parse_args()
 
@@ -328,19 +330,26 @@ if __name__ == "__main__":
         qa_tensor_parallel_size=args.tensor_parallel_size,
         qa_enable_prefix_caching=not args.disable_prefix_caching,
         cache_dir=args.cache_dir,
-        verbosity=args.verbosity
+        unofficial=args.unofficial,
+        verbosity=args.verbosity,
     )
 
     generations, references, cache_keys, pairwise_rankings = load_coarse_benchmark(args.benchmark)
+
+    start = datetime.now()
 
     scores = {}
     for generation, reference, coarse_score in zip(
         generations,
         references,
-        posh.evaluate(generations=generations, references=references, cache_keys=cache_keys),
+        posh.evaluate(generations=generations, references=references, cache_keys=cache_keys if args.cache_dir else None),
     ):
         assert (generation, reference) not in scores
         scores[(generation, reference)] = coarse_score
+
+    end = datetime.now()
+
+    print(f"Time taken: {end - start}")
 
     correlations = calculate_coarse_correlations(pairwise_rankings, scores, args.benchmark)
 
