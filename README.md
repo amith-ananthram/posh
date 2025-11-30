@@ -19,6 +19,7 @@ To replicate our evaluation of PoSh on DOCENT and CapArena, please run the follo
 ```
 PIP_NO_DEPS=1 conda env create -f environment.yml
 conda activate posh
+python -m spacy download en_core_web_trf
 
 python evaluate_posh_coarse.py --benchmark docent
 python evaluate_posh_coarse.py --benchmark caparena
