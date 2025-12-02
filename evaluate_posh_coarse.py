@@ -30,11 +30,14 @@ DOCENT_2_BETTER = 2
 CAPARENA_PATH = "corpora/caparena/caparena_annots_eval.json"
 
 
-def load_coarse_benchmark(benchmark_name):
+def load_coarse_benchmark(benchmark_name, subset):
     generation_reference_pairs, pairwise_rankings = set(), []
     if benchmark_name == "docent":
         docent = load_dataset("amitha/docent-eval-coarse", split="test")
         for row in docent:
+            if subset is not None and row['uuid'] not in subset:
+                continue
+
             reference = row["reference"]
             for key in ["model1", "model2"]:
                 generation_reference_pairs.add((f"{row['uuid']}-{row[key]}", row[f"{key}_generation"], reference))
@@ -59,6 +62,9 @@ def load_coarse_benchmark(benchmark_name):
             assert row["winner"] in {"equal", "skip", "bad", row["source1"], row["source2"]}, (
                 f"winner {row['winner']} not in {row['source1']}, {row['source2']}"
             )
+
+            if subset is not None and row['img'].split('.')[0] not in subset:
+                continue
 
             reference = row["ref"]
             for key in ["1", "2"]:
@@ -317,6 +323,7 @@ def calculate_coarse_correlations(pairwise_rankings, scores, benchmark, n_trials
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--benchmark", type=str, default="docent", choices=["docent", "caparena"])
+    parser.add_argument("--subset-file", type=str, default=None)
     parser.add_argument("--tensor-parallel-size", type=int, default=1)
     parser.add_argument("--gpu-memory-utilization", type=float, default=0.9)
     parser.add_argument("--disable-prefix-caching", action="store_true", default=False)
@@ -334,7 +341,12 @@ if __name__ == "__main__":
         verbosity=args.verbosity,
     )
 
-    generations, references, cache_keys, pairwise_rankings = load_coarse_benchmark(args.benchmark)
+    subset = None
+    if args.subset_file is not None:
+        with open(args.subset_file, 'r') as f:
+            subset = set(json.load(f))
+
+    generations, references, cache_keys, pairwise_rankings = load_coarse_benchmark(args.benchmark, subset)
 
     start = datetime.now()
 
@@ -349,8 +361,9 @@ if __name__ == "__main__":
 
     end = datetime.now()
 
-    print(f"Time taken: {end - start}")
-
     correlations = calculate_coarse_correlations(pairwise_rankings, scores, args.benchmark)
 
+    print(f"Performance on {args.benchmark}, subset={args.subset_file}, num_judgments={len(pairwise_rankings)}")
     print(json.dumps(correlations, indent=4))
+
+    print(f"Time taken: {end - start}")
