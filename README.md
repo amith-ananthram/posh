@@ -14,7 +14,7 @@ In our evaluations, PoSh is a better proxy for the human judgments in DOCENT tha
 
 To learn more about PoSh and DOCENT, please read our paper, "PoSh: Using Scene Graphs To Guide LLMs-as-a-Judge For Detailed Image Descriptions": https://arxiv.org/abs/2510.19060
 
-To replicate our evaluation of PoSh on DOCENT and CapArena, please run the following on a single H100 GPU running CUDA 12.7:
+To replicate our evaluation of PoSh on DOCENT and CapArena, please run the following on a single H100 GPU running CUDA 12.8:
 
 ```
 PIP_NO_DEPS=1 conda env create -f environment.yml
