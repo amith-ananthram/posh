@@ -238,4 +238,4 @@ dependencies:
       - xgrammar==0.1.25
       - xxhash==3.6.0
       - yarl==1.22.0
-prefix: /mnt/home/amith.ananthram/miniconda3/envs/posh_working
+prefix: /mnt/home/amith.ananthram/miniconda3/envs/posh
