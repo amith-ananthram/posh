@@ -23,6 +23,8 @@ python -m spacy download en_core_web_trf
 
 python evaluate_posh_coarse.py --benchmark docent
 python evaluate_posh_coarse.py --benchmark caparena
+
+python evaluate_posh_granular.py
 ```
 
 # Usage
