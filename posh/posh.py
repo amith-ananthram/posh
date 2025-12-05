@@ -73,14 +73,18 @@ class PoSh:
             extracted_sgs = {
                 text: sg
                 for text, sg in zip(
-                    texts_to_extract, self.scene_graph_extractor.get_graphs(texts_to_extract)
+                    texts_to_extract,
+                    self.scene_graph_extractor.get_graphs(texts_to_extract),
                 )
             }
         else:
             extracted_sgs = {}
 
         generation_sgs, reference_sgs = [], []
-        for source, source_texts in [("generation", generations), ("reference", references)]:
+        for source, source_texts in [
+            ("generation", generations),
+            ("reference", references),
+        ]:
             if source == "generation":
                 sgs = generation_sgs
             else:
@@ -99,7 +103,7 @@ class PoSh:
         if self.verbosity == "debug":
             print("Scoring...")
 
-        coarse_scores = self.qa_scene_graph_scorer.batch_calculate_coarse_scores(
+        granular_scores = self.qa_scene_graph_scorer.batch_calculate_granular_scores(
             generation_sgs,
             reference_sgs,
             generations,
@@ -108,12 +112,25 @@ class PoSh:
             overwrite_cache=overwrite_cache,
         )
 
-        assert len(coarse_scores) == len(generations) == len(references), (
-            f"Lengths of coarse scores, generations, and references must match: {len(coarse_scores)} != {len(generations)} != {len(references)}"
+        coarse_scores = self.qa_scene_graph_scorer.batch_calculate_coarse_scores(
+            generation_sgs,
+            reference_sgs,
+            generations,
+            references,
+            granular_scores=granular_scores,
+        )
+
+        assert (
+            len(granular_scores)
+            == len(coarse_scores)
+            == len(generations)
+            == len(references)
+        ), (
+            f"Lengths of granular scores, coarse scores, generations, and references must match: {len(granular_scores)} != {len(coarse_scores)} != {len(generations)} != {len(references)}"
         )
 
         if self.verbosity == "debug":
             for coarse_score in coarse_scores:
                 print(f"Coarse Score: {coarse_score}")
 
-        return coarse_scores
+        return granular_scores, coarse_scores
