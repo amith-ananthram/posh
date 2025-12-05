@@ -342,7 +342,7 @@ if __name__ == "__main__":
     for generation, reference, coarse_score in zip(
         generations,
         references,
-        posh.evaluate(generations=generations, references=references, cache_keys=cache_keys if args.cache_dir else None),
+        posh.evaluate(generations=generations, references=references, cache_keys=cache_keys if args.cache_dir else None)[1],
     ):
         assert (generation, reference) not in scores
         scores[(generation, reference)] = coarse_score
