@@ -49,13 +49,11 @@ coarse_scores = posh.evaluate(generations=generations, references=references)
 If you find either PoSh or DOCENT useful in your work, please cite:
 
 ```
-@misc{ananthram2025poshusingscenegraphs,
+@misc{ananthram2026poshusingscenegraphs,
       title={PoSh: Using Scene Graphs To Guide LLMs-as-a-Judge For Detailed Image Descriptions}, 
       author={Amith Ananthram and Elias Stengel-Eskin and Lorena A. Bradford and Julia Demarest and Adam Purvis and Keith Krut and Robert Stein and Rina Elster Pantalony and Mohit Bansal and Kathleen McKeown},
-      year={2025},
-      eprint={2510.19060},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV},
+      booktitle={The Fourteenth International Conference on Learning Representations},
+      year={2026},
       url={https://arxiv.org/abs/2510.19060}, 
 }
 ```
